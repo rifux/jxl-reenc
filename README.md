@@ -4,7 +4,7 @@
 
 ## About
 
-`jxl-reenc` is a homebrew Bash script designed to efficiently convert directories of images to the JpegXL (`.jxl`) format. It is built for users who want to save disk space without the hassle of manually converting files one by one.
+`jxl-reenc` is a Bash script designed to efficiently convert directories of images to the JpegXL (`.jxl`) format. It is built for users who want to save disk space without the hassle of manually converting files one by one.
 
 It handles recursion, prevents overwriting by automatically renaming collisions (e.g., `image (Copy).jxl`), and provides real-time progress bars and compression statistics.
 
