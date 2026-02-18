@@ -1,7 +1,6 @@
 #!/usr/bin/bash
 
 new_name() {
-    local path_old="${1}"
     local path_new="${1%.*}"    #   Cut the extension
     local i=0
 
@@ -24,12 +23,16 @@ new_name() {
     echo "${path_new}".jxl;
 }
 
+not_quiet() {
+    [[ "${JR_QUIET}" != "TRUE" ]]
+}
+
 reenc() {
     if [[ $(file --mime-type -b "${1}") != image/jxl ]]; then
         if magick -define jxl:effort=7 "${1}" "$(new_name "${1}")"; then
             [[ "${JR_REMOVE_FILES_AFTER_CONVERSION}" == "TRUE" ]] && rm "${1}"
         else
-            echo "Conversion failed for: ${1}" >&2
+            not_quiet && echo "Conversion failed for: ${1}" >&2
             ((images_failed++))
         fi
     else
@@ -46,14 +49,18 @@ process() {
     local images_skipped=0
     local images_failed=0
 
-    echo -e "\nEstimating images count for '${1}'..." >&2
+    not_quiet && echo -e "\nEstimating images count for '${1}'..." >&2
     images_total=$(find "${1}" -type f -exec file --mime-type -b {} + | grep -c '^image/')
-    echo "Found ${images_total} images, starting conversion." >&2
+    not_quiet && echo "Found ${images_total} images, starting conversion." >&2
 
     #
     #   Open pv on File Descriptor 3
     #
-    exec 3> >(pv -l -s "${images_total}" >/dev/null)
+    if not_quiet; then
+        exec 3> >(pv -l -s "${images_total}" >/dev/null)
+    else
+        exec 3>/dev/null
+    fi
 
     #
     #   Run loop in the main thread using process substitution
@@ -73,15 +80,15 @@ process() {
     sleep 0.3
 
     if (( images_skipped > 0 )); then
-        echo "Found ${images_skipped} .jxl images, they were skipped." >&2
+        not_quiet && echo "Found ${images_skipped} .jxl images, they were skipped." >&2
     fi
 
     if (( images_failed > 0 )); then
-        echo "${images_failed} images failed conversion." >&2
-        return 1
+        not_quiet && echo "${images_failed} images failed conversion." >&2
     fi
 
-    echo ""
+    not_quiet && printf "\n\n"
+    return $(( images_failed > 0 ))
 }
 
 app() {
@@ -96,7 +103,7 @@ app() {
 
 if [[ "$1" =~ ^(--|-)(h|help)$ ]]; then
     cat << EOF
-jxl-reenc version 0.1.1
+jxl-reenc version 0.1.2a
 Homebrew script for batch image-to-JpegXL conversion
 
 Usage: [environment variables] jxl-reenc [locations such as dirs and files]
@@ -106,8 +113,10 @@ Examples:
   jxl-reenc . ~/Pictures ~/Documents/Scans /run/media/user/SSD/16K.png
 
 Environment variables:
-  JR_REMOVE_FILES_AFTER_CONVERSION=TRUE   
+  JR_REMOVE_FILES_AFTER_CONVERSION=TRUE
     Remove original files for successfully converted images
+  JR_QUIET=TRUE
+    Disable output
 EOF
 else
     app "$@"
