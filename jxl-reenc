@@ -41,7 +41,7 @@ get_size() {
 reenc() {
     if [[ $(file --mime-type -b "${1}") != image/jxl ]]; then
         local new_path="$(new_name "${1}")"
-        if magick -define jxl:effort=7 "${1}" "${new_path}"; then
+        if magick -define warning:all=false -define jxl:effort=7 "${1}" "${new_path}"; then
             ((size_old+=$(get_size "${1}")))
             ((size_new+=$(get_size "${new_path}")))
             [[ "${JR_REMOVE}" == "TRUE" ]] && rm "${1}"
