@@ -24,7 +24,7 @@ This script relies on standard CLI tools. Ensure you have the following installe
 Simply download the script and make it executable:
 
 ```bash
-wget https://github.com/rifux/jxl-reenc/raw/master/jxl-reenc
+wget https://github.com/rifux/jxl-reenc/raw/main/jxl-reenc
 install -m 755 jxl-reenc ~/.local/bin/
 ```
 
