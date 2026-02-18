@@ -1,5 +1,12 @@
 #!/usr/bin/bash
 
+#
+#   jxl-reenc - Batch image-to-JpegXL conversion tool
+#   Copyright (c) 2026 rifux
+#   Licensed under the MIT License
+#   https://github.com/rifux/jxl-reenc
+#
+
 new_name() {
     local path_new="${1%.*}"    #   Cut the extension
     local i=0
