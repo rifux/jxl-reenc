@@ -1,0 +1,180 @@
+#!/usr/bin/bash
+
+#
+#   jxl-reenc - Batch image-to-JpegXL conversion tool
+#   Copyright (c) 2026 rifux
+#   Licensed under the MIT License
+#   https://github.com/rifux/jxl-reenc
+#
+
+new_name() {
+    local path_new="${1%.*}"    #   Cut the extension
+    local i=0
+
+    while [[ -e "${path_new}".jxl ]]; do
+        local base_path="${path_new% (Copy*}"
+        local copy_id=$( [ "${i}" -ne 0 ] && echo " ${i}" )
+        #
+        #   Cut (Copy) tag in filename if there is one by
+        #       "${path_new% (Copy*}"
+        #   then create a new tag, e.g. '(Copy 34)' by
+        #       $( [ "$i" -ne 0 ] && echo " $i" )
+        #   that returns nothing, i.e. '' only when i is equal to zero.
+        #
+        #   It is used to ensure that we are not overwriting existing data.
+        #
+        path_new="${base_path} (Copy${copy_id})"
+        ((i++))
+    done
+
+    echo "${path_new}".jxl;
+}
+
+not_quiet() {
+    [[ "${JR_QUIET}" != "TRUE" ]]
+}
+
+get_size() {
+    echo "$(du -b -s "${1}" 2>/dev/null | cut -f1)"
+}
+
+reenc() {
+    if [[ $(file --mime-type -b "${1}") != image/jxl ]]; then
+        local new_path="$(new_name "${1}")"
+        if magick -define warning:all=false -define jxl:effort=7 "${1}" "${new_path}"; then
+            ((size_old+=$(get_size "${1}")))
+            ((size_new+=$(get_size "${new_path}")))
+            [[ "${JR_REMOVE}" == "TRUE" ]] && rm "${1}"
+        else
+            not_quiet && echo "Conversion failed for: ${1}" >&2
+            ((images_failed++))
+        fi
+    else
+        ((images_skipped++))
+    fi
+}
+
+is_image() {
+    [[ $(file --mime-type -b "${1}") =~ ^image/ ]]
+}
+
+process() {
+    local images_total
+    local images_skipped=0
+    local images_failed=0
+
+    not_quiet && echo -e "\nEstimating images count for '${1}'..." >&2
+    images_total=$(find "${1}" -type f -exec file --mime-type -b {} + | grep -c '^image/')
+    not_quiet && echo "Found ${images_total} images, starting conversion." >&2
+
+    #
+    #   Open pv on File Descriptor 3
+    #
+    if not_quiet; then
+        exec 3> >(pv -l -s "${images_total}" >/dev/null)
+    else
+        exec 3>/dev/null
+    fi
+
+    #
+    #   Run loop in the main thread using process substitution
+    #
+    while IFS= read -r -d '' filename; do
+        if is_image "${filename}"; then
+            reenc "${filename}"
+            echo "x" >&3
+        fi
+    done < <(find "${1}" -type f -print0)
+
+    #
+    #   Close side channel to stop pv
+    #
+    exec 3>&-
+
+    sleep 0.3
+
+    if (( images_skipped > 0 )); then
+        not_quiet && echo "Found ${images_skipped} .jxl images, they were skipped." >&2
+    fi
+
+    if (( images_failed > 0 )); then
+        not_quiet && echo "${images_failed} images failed conversion." >&2
+    fi
+
+    not_quiet && printf "\n"
+    return $(( images_failed > 0 ))
+}
+
+app() {
+    local size_old=0
+    local size_new=0
+
+    if [ "$#" -eq 0 ]; then
+        process "$(pwd)"
+    else
+        for arg in "$@"; do
+            process "$arg"
+        done
+    fi
+
+    if [ ${size_old} -ne 0 ] && not_quiet; then
+        awk -v size_old="${size_old}" -v size_new="${size_new}" '
+        BEGIN {
+            printf "Total compression rate: %.1f%%.\n", size_new*100 / size_old
+        }
+        '
+
+        echo -e "In size it's $(
+            echo $((size_old - size_new)) | numfmt --to=iec-i
+        ) difference ($(
+            echo ${size_old} | numfmt --to=iec-i
+        ) -> $(
+            echo ${size_new} | numfmt --to=iec-i
+        ))."
+    elif not_quiet; then
+        echo -e "No images were converted."
+    fi
+}
+
+if [[ "$1" =~ ^(--|-)(h|help)$ ]]; then
+    cat << EOF
+jxl-reenc version 0.1.2
+Homebrew script for batch image-to-JpegXL conversion
+
+Usage: [environment variables] jxl-reenc [locations such as dirs and files]
+Examples:
+  jxl-reenc
+  jxl-reenc image.png
+  jxl-reenc . ~/Pictures ~/Documents/Scans /run/media/user/SSD/16K.png
+
+Environment variables:
+  JR_REMOVE=TRUE
+    Remove original files for successfully converted images.
+  JR_QUIET=TRUE
+    Disable output.
+
+Output explanation:
+  Example output:
+    ❯ JR_REMOVE=TRUE jxl-reenc /run/media/user/test_dir
+
+    Estimating images count for '/run/media/user/test_dir'...
+    Found 87 images, starting conversion.
+    87.0  0:00:41 [2.08 /s] [=======================================>] 100%
+    Found 22 .jxl images, they were skipped.
+
+    Total compression rate: 41.1%.
+    In size it's 14Mi difference (24Mi -> 9.6Mi).
+    
+  "Found 22 .jxl images, they were skipped."
+    Images that were already in JpegXL format were not converted.
+
+  "Total compression rate: 41.1%."
+    This statistic excludes images that were skipped.
+    It's calculated as: (new size / old size) * 100.
+
+Report issues:
+  https://github.com/rifux/jxl-reenc/issues
+EOF
+else
+    app "$@"
+fi
