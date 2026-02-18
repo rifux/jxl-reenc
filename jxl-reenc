@@ -37,7 +37,7 @@ reenc() {
         if magick -define jxl:effort=7 "${1}" "${new_path}"; then
             ((size_old+=$(get_size "${1}")))
             ((size_new+=$(get_size "${new_path}")))
-            [[ "${JR_REMOVE_FILES_AFTER_CONVERSION}" == "TRUE" ]] && rm "${1}"
+            [[ "${JR_REMOVE}" == "TRUE" ]] && rm "${1}"
         else
             not_quiet && echo "Conversion failed for: ${1}" >&2
             ((images_failed++))
@@ -137,7 +137,7 @@ Examples:
   jxl-reenc . ~/Pictures ~/Documents/Scans /run/media/user/SSD/16K.png
 
 Environment variables:
-  JR_REMOVE_FILES_AFTER_CONVERSION=TRUE
+  JR_REMOVE=TRUE
     Remove original files for successfully converted images
   JR_QUIET=TRUE
     Disable output
