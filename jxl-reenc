@@ -136,6 +136,25 @@ app() {
     fi
 }
 
+prerequisites() {
+    deps=("pv" "magick" "du" "file" "numfmt" "find" "awk")
+    missing=0
+
+    for cmd in "${deps[@]}"; do
+        if ! command -v "${cmd}" &>/dev/null; then
+            echo -e "'${cmd}' is missing. The script won't run without it."
+            ((missing++))
+        fi
+    done
+
+    if ! magick -list format 2>/dev/null | grep -i "jxl" | grep -qi "rw"; then
+        echo -e "'${cmd}' is installed, but has no access to libjxl. The script won't run without it."
+        ((missing++))
+    fi
+    
+    [ "${missing}" -eq 0 ]
+}
+
 if [[ "$1" =~ ^(--|-)(h|help)$ ]]; then
     cat << EOF
 jxl-reenc version 0.1.2
@@ -176,5 +195,5 @@ Report issues:
   https://github.com/rifux/jxl-reenc/issues
 EOF
 else
-    app "$@"
+    prerequisites && app "$@"
 fi
