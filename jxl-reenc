@@ -27,9 +27,16 @@ not_quiet() {
     [[ "${JR_QUIET}" != "TRUE" ]]
 }
 
+get_size() {
+    echo "$(du -b -s "${1}" 2>/dev/null | cut -f1)"
+}
+
 reenc() {
     if [[ $(file --mime-type -b "${1}") != image/jxl ]]; then
-        if magick -define jxl:effort=7 "${1}" "$(new_name "${1}")"; then
+        local new_path="$(new_name "${1}")"
+        if magick -define jxl:effort=7 "${1}" "${new_path}"; then
+            ((size_old+=$(get_size "${1}")))
+            ((size_new+=$(get_size "${new_path}")))
             [[ "${JR_REMOVE_FILES_AFTER_CONVERSION}" == "TRUE" ]] && rm "${1}"
         else
             not_quiet && echo "Conversion failed for: ${1}" >&2
@@ -87,11 +94,14 @@ process() {
         not_quiet && echo "${images_failed} images failed conversion." >&2
     fi
 
-    not_quiet && printf "\n\n"
+    not_quiet && printf "\n"
     return $(( images_failed > 0 ))
 }
 
 app() {
+    local size_old=0
+    local size_new=0
+
     if [ "$#" -eq 0 ]; then
         process "$(pwd)"
     else
@@ -99,6 +109,20 @@ app() {
             process "$arg"
         done
     fi
+
+    not_quiet && awk -v size_old="${size_old}" -v size_new="${size_new}" '
+    BEGIN {
+        printf "Total compression rate: %.1f%%\n", size_new*100 / size_old
+    }
+    '
+
+    not_quiet && echo -e "In size it's $(
+        echo $((size_old - size_new)) | numfmt --to=iec-i
+    ) difference ($(
+        echo ${size_old} | numfmt --to=iec-i
+    ) -> $(
+        echo ${size_new} | numfmt --to=iec-i
+    ))"
 }
 
 if [[ "$1" =~ ^(--|-)(h|help)$ ]]; then
