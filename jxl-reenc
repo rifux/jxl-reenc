@@ -157,7 +157,7 @@ prerequisites() {
 
 if [[ "$1" =~ ^(--|-)(h|help)$ ]]; then
     cat << EOF
-jxl-reenc version 0.1.2
+jxl-reenc version 0.1.3
 Homebrew script for batch image-to-JpegXL conversion
 
 Usage: [environment variables] jxl-reenc [locations such as dirs and files]
