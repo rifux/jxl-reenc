@@ -142,9 +142,31 @@ Examples:
 
 Environment variables:
   JR_REMOVE=TRUE
-    Remove original files for successfully converted images
+    Remove original files for successfully converted images.
   JR_QUIET=TRUE
-    Disable output
+    Disable output.
+
+Output explanation:
+  Example output:
+    ❯ JR_REMOVE=TRUE jxl-reenc /run/media/user/test_dir
+
+    Estimating images count for '/run/media/user/test_dir'...
+    Found 87 images, starting conversion.
+    87.0  0:00:41 [2.08 /s] [=======================================>] 100%
+    Found 22 .jxl images, they were skipped.
+
+    Total compression rate: 41.1%.
+    In size it's 14Mi difference (24Mi -> 9.6Mi).
+    
+  "Found 22 .jxl images, they were skipped."
+    Images that were already in JpegXL format were not converted.
+
+  "Total compression rate: 41.1%."
+    This statistic excludes images that were skipped.
+    It's calculated as: (new size / old size) * 100.
+
+Report issues:
+  https://github.com/rifux/jxl-reenc/issues
 EOF
 else
     app "$@"
