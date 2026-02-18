@@ -27,7 +27,7 @@ new_name() {
 reenc() {
     if [[ $(file --mime-type -b "${1}") != image/jxl ]]; then
         if magick -define jxl:effort=7 "${1}" "$(new_name "${1}")"; then
-            [[ "${REMOVE_FILES_AFTER_CONVERSION}" == "TRUE" ]] && rm "${1}"
+            [[ "${JR_REMOVE_FILES_AFTER_CONVERSION}" == "TRUE" ]] && rm "${1}"
         else
             echo "Conversion failed for: ${1}" >&2
             ((images_failed++))
@@ -94,4 +94,21 @@ app() {
     fi
 }
 
-app "$@"
+if [[ "$1" =~ ^(--|-)(h|help)$ ]]; then
+    cat << EOF
+jxl-reenc version 0.1.1
+Homebrew script for batch image-to-JpegXL conversion
+
+Usage: [environment variables] jxl-reenc [locations such as dirs and files]
+Examples:
+  jxl-reenc
+  jxl-reenc image.png
+  jxl-reenc . ~/Pictures ~/Documents/Scans /run/media/user/SSD/16K.png
+
+Environment variables:
+  JR_REMOVE_FILES_AFTER_CONVERSION=TRUE   
+    Remove original files for successfully converted images
+EOF
+else
+    app "$@"
+fi
