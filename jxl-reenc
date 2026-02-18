@@ -110,19 +110,23 @@ app() {
         done
     fi
 
-    not_quiet && awk -v size_old="${size_old}" -v size_new="${size_new}" '
-    BEGIN {
-        printf "Total compression rate: %.1f%%\n", size_new*100 / size_old
-    }
-    '
+    if [ ${size_old} -ne 0 ] && not_quiet; then
+        awk -v size_old="${size_old}" -v size_new="${size_new}" '
+        BEGIN {
+            printf "Total compression rate: %.1f%%.\n", size_new*100 / size_old
+        }
+        '
 
-    not_quiet && echo -e "In size it's $(
-        echo $((size_old - size_new)) | numfmt --to=iec-i
-    ) difference ($(
-        echo ${size_old} | numfmt --to=iec-i
-    ) -> $(
-        echo ${size_new} | numfmt --to=iec-i
-    ))"
+        echo -e "In size it's $(
+            echo $((size_old - size_new)) | numfmt --to=iec-i
+        ) difference ($(
+            echo ${size_old} | numfmt --to=iec-i
+        ) -> $(
+            echo ${size_new} | numfmt --to=iec-i
+        ))."
+    elif not_quiet; then
+        echo -e "No images were converted."
+    fi
 }
 
 if [[ "$1" =~ ^(--|-)(h|help)$ ]]; then
