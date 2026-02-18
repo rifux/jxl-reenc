@@ -46,7 +46,7 @@ process() {
     local images_skipped=0
     local images_failed=0
 
-    echo "Estimating images count for '${1}'..." >&2
+    echo -e "\nEstimating images count for '${1}'..." >&2
     images_total=$(find "${1}" -type f -exec file --mime-type -b {} + | grep -c '^image/')
     echo "Found ${images_total} images, starting conversion." >&2
 
@@ -80,6 +80,8 @@ process() {
         echo "${images_failed} images failed conversion." >&2
         return 1
     fi
+
+    echo ""
 }
 
 app() {
