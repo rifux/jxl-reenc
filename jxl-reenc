@@ -7,6 +7,14 @@
 #   https://github.com/rifux/jxl-reenc
 #
 
+not_quiet() {
+    [[ "${JR_QUIET}" != "TRUE" ]]
+}
+
+log() {
+    not_quiet && echo -e "${1}"
+}
+
 new_name() {
     local path_new="${1%.*}"    #   Cut the extension
     local i=0
@@ -30,27 +38,54 @@ new_name() {
     echo "${path_new}".jxl;
 }
 
-not_quiet() {
-    [[ "${JR_QUIET}" != "TRUE" ]]
-}
-
 get_size() {
     echo "$(du -b -s "${1}" 2>/dev/null | cut -f1)"
 }
 
+enc_static() {
+    magick -quiet -define jxl:effort=7 "${1}" "${2}" && ((++images_processed)) || ((failed++))
+    return 0
+}
+
+enc_animated() {
+    case "${mime_type}" in
+        image/webp)
+            magick "${1}" apng:- | \
+            cjxl --quiet - "${2}" && ((++images_processed)) || ((failed++))
+            ;;
+        *)
+            ffmpeg -hide_banner -loglevel error -i "${1}" -f apng pipe:1 | \
+            cjxl --quiet - "${2}" && ((++images_processed)) || ((failed++))
+            ;;
+    esac
+    return 0
+}
+
 reenc() {
-    if [[ $(file --mime-type -b "${1}") != image/jxl ]]; then
-        local new_path="$(new_name "${1}")"
-        if magick -define warning:all=false -define jxl:effort=7 "${1}" "${new_path}"; then
-            ((size_old+=$(get_size "${1}")))
-            ((size_new+=$(get_size "${new_path}")))
-            [[ "${JR_REMOVE}" == "TRUE" ]] && rm "${1}"
-        else
-            not_quiet && echo "Conversion failed for: ${1}" >&2
-            ((images_failed++))
-        fi
+    local mime_type=$(file --mime-type -b "${1}")
+    local failed=0
+    
+    case "${mime_type}" in
+        image/jxl) ((p_images_skipped_jxl++)); return ;;
+        image/gif) ((p_images_skipped_gif++)); return ;;
+    esac
+    
+    local new_path="$(new_name "${1}")"
+    local frames=$(magick identify "${1}" | wc -l)
+
+    if [ "${frames}" -eq 1 ]; then
+        enc_static "${1}" "${new_path}"
     else
-        ((images_skipped++))
+        enc_animated "${1}" "${new_path}"
+    fi
+
+    if (( failed == 0 )); then
+        ((size_old+=$(get_size "${1}")))
+        ((size_new+=$(get_size "${new_path}")))
+        [[ "${JR_REMOVE}" == "TRUE" ]] && rm "${1}"
+    else
+        log "Conversion failed for: ${1}" >&2
+        ((p_images_failed++))
     fi
 }
 
@@ -59,19 +94,20 @@ is_image() {
 }
 
 process() {
-    local images_total
-    local images_skipped=0
-    local images_failed=0
+    local p_images_total
+    local p_images_skipped_jxl=0
+    local p_images_skipped_gif=0
+    local p_images_failed=0
 
-    not_quiet && echo -e "\nEstimating images count for '${1}'..." >&2
-    images_total=$(find "${1}" -type f -exec file --mime-type -b {} + | grep -c '^image/')
-    not_quiet && echo "Found ${images_total} images, starting conversion." >&2
+    log "\nEstimating images count for '${1}'..." >&2
+    p_images_total=$(find "${1}" -type f -exec file --mime-type -b {} + | grep -c '^image/')
+    log "Found ${p_images_total} images, starting conversion." >&2
 
     #
     #   Open pv on File Descriptor 3
     #
     if not_quiet; then
-        exec 3> >(pv -l -s "${images_total}" >/dev/null)
+        exec 3> >(pv -l -s "${p_images_total}" >/dev/null)
     else
         exec 3>/dev/null
     fi
@@ -93,21 +129,30 @@ process() {
 
     sleep 0.3
 
-    if (( images_skipped > 0 )); then
-        not_quiet && echo "Found ${images_skipped} .jxl images, they were skipped." >&2
+    if (( p_images_skipped_jxl > 0 )); then
+        log "Found ${p_images_skipped_jxl} .jxl images, they were skipped." >&2
     fi
 
-    if (( images_failed > 0 )); then
-        not_quiet && echo "${images_failed} images failed conversion." >&2
+    if (( p_images_skipped_gif > 0 )); then
+        log "Found ${p_images_skipped_gif} .GIF images, they were skipped." >&2
     fi
 
-    not_quiet && printf "\n"
-    return $(( images_failed > 0 ))
+    if (( p_images_failed > 0 )); then
+        log "${p_images_failed} images failed conversion." >&2
+    fi
+
+    ((images_failed+=p_images_failed))
+    ((images_skipped_jxl+=p_images_skipped_jxl))
+    ((images_skipped_gif+=p_images_skipped_gif))
 }
 
 app() {
     local size_old=0
     local size_new=0
+    local images_processed=0
+    local images_skipped_jxl=0
+    local images_skipped_gif=0
+    local images_failed=0
 
     if [ "$#" -eq 0 ]; then
         process "$(pwd)"
@@ -120,7 +165,7 @@ app() {
     if [ ${size_old} -ne 0 ] && not_quiet; then
         awk -v size_old="${size_old}" -v size_new="${size_new}" '
         BEGIN {
-            printf "Total compression rate: %.1f%%.\n", size_new*100 / size_old
+            printf "\nTotal compression rate: %.1f%%.\n", size_new*100 / size_old
         }
         '
 
@@ -131,8 +176,22 @@ app() {
         ) -> $(
             echo ${size_new} | numfmt --to=iec-i
         ))."
+
+        echo -e "\nImages processed: ${images_processed}."
+
+        if (( images_skipped_jxl > 0 )); then
+            log "Found ${images_skipped_jxl} .jxl images, they were skipped." >&2
+        fi
+
+        if (( images_skipped_gif > 0 )); then
+            log "Found ${images_skipped_gif} .GIF images, they were skipped." >&2
+        fi
+
+        if (( images_failed > 0 )); then
+            log "${images_failed} images failed conversion." >&2
+        fi
     elif not_quiet; then
-        echo -e "No images were converted."
+        echo -e "\nNo images were converted."
     fi
 }
 
