@@ -12,9 +12,10 @@ It handles recursion, prevents overwriting by automatically renaming collisions 
 
 This script relies on standard CLI tools. Ensure you have the following installed:
 
-* **libjxl** (for converting)
+* **libjxl** (JpegXL itself)
 * **bash** (v4.0+)
 * **magick** (ImageMagick v7, with JXL support)
+* **ffmpeg** (for animated images)
 * **file** (for MIME type detection)
 * **pv** (for the progress bar)
 * **coreutils** (specifically `numfmt`, `du`, `find`, `awk`)
@@ -27,6 +28,8 @@ Simply download the script and make it executable:
 wget https://github.com/rifux/jxl-reenc/raw/main/jxl-reenc
 install -m 755 jxl-reenc ~/.local/bin/
 ```
+
+(Make sure this `~/.local/bin/` is in PATH)
 
 ## Usage
 
@@ -76,18 +79,36 @@ The script provides a summary of operations upon completion.
 Example output:
 
 ```text
-❯ JR_REMOVE=TRUE jxl-reenc /run/media/user/test_dir
+❯ JR_REMOVE=TRUE jxl-reenc ~/Pictures ~/Videos random_text
 
-Estimating images count for '/run/media/user/test_dir'...
-Found 87 images, starting conversion.
-87.0  0:00:41 [2.08 /s] [=======================================>] 100%
-Found 22 .jxl images, they were skipped.
+Processing '/home/user/Pictures'...
+⊙ Found 18 images, starting conversion.
+18.0  0:00:43 [ 409m/s] [=======================================>] 100%
 
-Total compression rate: 41.1%.
-In size it's 14Mi difference (24Mi -> 9.6Mi).
+Processing '/home/user/Videos'...
+⊙ Images not found, skipping.
+
+Processing 'random_text'...
+⊘ Location not found, skipping.
+
+┌─────────────────────────────────────┐
+│               Results               │
+├─────────────────────────────────────┤
+│  Compression Rate            40.2%  │
+│  Original Size              237MiB  │
+│  Final Size                  95MiB  │
+│  Space Saved                142MiB  │
+├─────────────────────────────────────┤
+│  Images Processed               18  │
+│  JXL Files (skip)               98  │
+│  GIF Files (skip)                0  │
+├─────────────────────────────────────┤
+│  Images Failed                   0  │
+│  Locations Skipped               2  │
+└─────────────────────────────────────┘
 ```
 
-* **Skipped images:** Files already in `.jxl` format are ignored to prevent redundant processing.
+* **Skipped images:** Files already in `.jxl` format are ignored to prevent redundant processing. `.GIF` images are skipped too due to bad Compression Rates.
 * **Compression rate:** Calculated as `(new size / old size) * 100`. Lower is better.
 * **Difference:** The actual amount of disk space saved.
 
@@ -96,6 +117,7 @@ In size it's 14Mi difference (24Mi -> 9.6Mi).
 * **Encoding:** Uses `magick` (ImageMagick) with `jxl:effort=7`. This is a "sweet spot" setting that provides good compression ratios without taking excessively long.
 * **Collision Handling:** If `image.jpg` is being converted but `image.jxl` already exists, the script generates `image (Copy).jxl`. If that exists, it increments to `image (Copy 1).jxl`, and so on.
 * **Safety:** The script only touches files that are detected as images via `file --mime-type`.
+* **Animated Images:** Both `ffmpeg` and `magick` are used for handling animated images conversion.
 
 ## License
 
