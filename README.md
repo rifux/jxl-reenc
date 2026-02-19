@@ -79,13 +79,13 @@ The script provides a summary of operations upon completion.
 Example output:
 
 ```text
-❯ JR_REMOVE=TRUE jxl-reenc ~/Pictures . random_text
+❯ JR_REMOVE=TRUE jxl-reenc ~/Pictures ~/Videos random_text
 
 Processing '/home/user/Pictures'...
 ⊙ Found 18 images, starting conversion.
-18.0  0:00:43 [ 409m/s] [===========================================>] 100%
+18.0  0:00:43 [ 409m/s] [=======================================>] 100%
 
-Processing '.'...
+Processing '/home/user/Videos'...
 ⊙ Images not found, skipping.
 
 Processing 'random_text'...
