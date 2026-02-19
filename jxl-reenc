@@ -94,9 +94,9 @@ reenc() {
             is_animated=0
             ;;
         *)
-            if [[ "${mime_type}" == "image/png" ]] && head -c 2048 "${1}" | grep -a -q "acTL"; then
+            if [[ "${mime_type}" == "image/png" ]] && head -c 4096 "${1}" | grep -a -q "acTL"; then
                 is_animated=1
-            elif [[ "{mime_type}" == "image/webp" ]] && head -c 2048 "${1}" | grep -a -q "ANMF"; then
+            elif [[ "${mime_type}" == "image/webp" ]] && head -c 2048 "${1}" | grep -a -q "ANMF"; then
                 is_animated=1
             else
                 local frames=$(magick identify "${1}" | wc -l)
@@ -271,7 +271,7 @@ prerequisites() {
 
 if [[ "$1" =~ ^(--|-)(h|help)$ ]]; then
     cat << EOF
-jxl-reenc version 0.2.0
+jxl-reenc version 0.2.1
 Home brew script for batch image-to-JpegXL conversion
 
 Usage: [environment variables] jxl-reenc [locations such as dirs and files]
