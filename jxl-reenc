@@ -77,6 +77,7 @@ enc_animated() {
 reenc() {
     local mime_type=$(file --mime-type -b "${1}")
     local failed=0
+    local is_animated=0
     
     case "${mime_type}" in
         image/jxl) ((images_skipped_jxl++)); return ;;
@@ -84,9 +85,27 @@ reenc() {
     esac
     
     local new_path="$(new_name "${1}")"
-    local frames=$(magick identify "${1}" | wc -l)
 
-    if [ "${frames}" -eq 1 ]; then
+    case "${mime_type}" in
+        image/jpeg|image/pjpeg|image/bmp|image/x-bmp|\
+        image/x-sony-arw|image/x-canon-cr2|image/x-canon-cr3|\
+        image/x-nikon-nef|image/x-fuji-raf|image/x-panasonic-rw2|\
+        image/x-olympus-orf|image/x-adobe-dng)
+            is_animated=0
+            ;;
+        *)
+            if [[ "${mime_type}" == "image/png" ]] && head -c 2048 "${1}" | grep -a -q "acTL"; then
+                is_animated=1
+            elif [[ "{mime_type}" == "image/webp" ]] && head -c 2048 "${1}" | grep -a -q "ANMF"; then
+                is_animated=1
+            else
+                local frames=$(magick identify "${1}" | wc -l)
+                [[ "${frames}" -gt 1 ]] && is_animated=1
+            fi
+            ;;
+    esac
+
+    if [ "${is_animated}" -eq 0 ]; then
         enc_static "${1}" "${new_path}"
     else
         enc_animated "${1}" "${new_path}"
