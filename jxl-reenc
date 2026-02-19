@@ -232,7 +232,7 @@ app() {
 }
 
 prerequisites() {
-    deps=("pv" "magick" "du" "file" "numfmt" "find" "awk")
+    deps=("pv" "magick" "du" "file" "numfmt" "find" "awk" "ffmpeg")
     missing=0
 
     for cmd in "${deps[@]}"; do
@@ -273,7 +273,7 @@ Output explanation:
     
     Processing '/home/user/Pictures'...
     ⊙ Found 18 images, starting conversion.
-    18.0  0:00:43 [ 409m/s] [================================================>] 100%
+    18.0  0:00:43 [ 409m/s] [=======================================>] 100%
     
     Processing '.'...
     ⊙ Images not found, skipping.
