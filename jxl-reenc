@@ -1,14 +1,17 @@
 #!/usr/bin/bash
 
 #
-#   jxl-reenc - Batch image-to-JpegXL conversion tool
+#   jxl-reenc - Simple image-to-JpegXL conversion tool
 #   Copyright (c) 2026 Vladimir (rifux) Blinkov
-#   Licensed under the MIT License
+#   Licensed under the MIT License!
 #   https://github.com/rifux/jxl-reenc
+#
+#   Let this simple, yet a little awkward script
+#   do all the job!
 #
 
 #
-#   Colors
+#   Colors!
 #
 PPL='\033[1;35m'
 BLD='\033[1m'
@@ -21,258 +24,286 @@ DIM='\033[2m'
 RST='\033[0m'
 
 not_quiet() {
-    [[ "${JR_QUIET}" != "TRUE" ]]
+  [[ "${JR_QUIET}" != "TRUE" ]]
 }
 
 log() {
-    not_quiet && echo -e "${1}"
+  not_quiet && echo -e "${1}"
 }
 
 new_name() {
-    local path_new="${1%.*}"    #   Cut the extension
-    local i=0
+  local path_new="${1%.*}" #   Cut file extension
+  local i=0
 
-    while [[ -e "${path_new}".jxl ]]; do
-        local base_path="${path_new% (Copy*}"
-        local copy_id=$( [ "${i}" -ne 0 ] && echo " ${i}" )
-        #
-        #   Cut (Copy) tag in filename if there is one by
-        #       "${path_new% (Copy*}"
-        #   then create a new tag, e.g. '(Copy 34)' by
-        #       $( [ "$i" -ne 0 ] && echo " $i" )
-        #   that returns nothing, i.e. '' only when i is equal to zero.
-        #
-        #   It is used to ensure that we are not overwriting existing data.
-        #
-        path_new="${base_path} (Copy${copy_id})"
-        ((i++))
-    done
+  while [[ -e "${path_new}".jxl ]]; do
+    local base_path="${path_new% (Copy*}"
+    local copy_id=$([ "${i}" -ne 0 ] && echo " ${i}")
+    #
+    #   Cut (or copy) tag in file name if there is one by
+    #       "${path_new% (Copy*}"
+    #   then create a new tag, e.g. '(Copy 34)' by
+    #       $( [ "$i" -ne 0 ] && echo " $i" )
+    #   that returns nothing, i.e. '' only when i equals zero.
+    #
+    #   It's used to ensure that we won't overwrite existing data.
+    #
+    path_new="${base_path} (Copy${copy_id})"
+    ((i++))
+  done
 
-    echo "${path_new}".jxl;
+  echo "${path_new}".jxl
 }
 
 get_size() {
-    echo "$(du -b -s "${1}" 2>/dev/null | cut -f1)"
+  echo "$(du -b -s "${1}" 2>/dev/null | cut -f1)"
 }
 
 enc_static() {
-    magick -quiet -define jxl:effort=7 "${1}" "${2}" && ((++images_processed)) || ((failed++))
-    return 0
+  #
+  #   This may look a bit tricky, but the counter actually
+  #   works as intended.
+  #
+  #   Magick uses JXL effort 7 explicitly as a good quality to
+  #   size and computational cost tradeoff. I see JPEG to JXL
+  #   lossless conversion as inefficient, therefore I use magick
+  #   both for avoiding it and more extensive image codec coverage.
+  #
+  magick -quiet -define jxl:effort=7 "${1}" "${2}" && ((++images_processed)) || ((failed++))
+  return 0
 }
 
 enc_animated() {
-    case "${mime_type}" in
-        image/webp)
-            magick "${1}" apng:- | \
-            cjxl --quiet - "${2}" && ((++images_processed)) || ((failed++))
-            ;;
-        *)
-            ffmpeg -hide_banner -loglevel error -i "${1}" -f apng pipe:1 | \
-            cjxl --quiet - "${2}" && ((++images_processed)) || ((failed++))
-            ;;
-    esac
-    return 0
+  case "${mime_type}" in
+  image/webp)
+    magick "${1}" apng:- |
+      cjxl --quiet - "${2}" && ((++images_processed)) || ((failed++))
+    ;;
+  *)
+    ffmpeg -hide_banner -loglevel error -i "${1}" -f apng pipe:1 |
+      cjxl --quiet - "${2}" && ((++images_processed)) || ((failed++))
+    ;;
+  esac
+  return 0
 }
 
 reenc() {
-    local mime_type=$(file --mime-type -b "${1}")
-    local failed=0
-    local is_animated=0
-    
-    case "${mime_type}" in
-        image/jxl) ((images_skipped_jxl++)); return ;;
-        image/gif) ((images_skipped_gif++)); return ;;
-    esac
-    
-    local new_path="$(new_name "${1}")"
+  local mime_type=$(file --mime-type -b "${1}")
+  local failed=0
+  local is_animated=0
 
-    case "${mime_type}" in
-        image/jpeg|image/pjpeg|image/bmp|image/x-bmp|\
-        image/x-sony-arw|image/x-canon-cr2|image/x-canon-cr3|\
-        image/x-nikon-nef|image/x-fuji-raf|image/x-panasonic-rw2|\
-        image/x-olympus-orf|image/x-adobe-dng)
-            is_animated=0
-            ;;
-        *)
-            if [[ "${mime_type}" == "image/png" ]] && head -c 4096 "${1}" | grep -a -q "acTL"; then
-                is_animated=1
-            elif [[ "${mime_type}" == "image/webp" ]] && head -c 2048 "${1}" | grep -a -q "ANMF"; then
-                is_animated=1
-            else
-                local frames=$(magick identify "${1}" | wc -l)
-                [[ "${frames}" -gt 1 ]] && is_animated=1
-            fi
-            ;;
-    esac
+  case "${mime_type}" in
+  image/jxl)
+    ((images_skipped_jxl++))
+    return
+    ;;
+  image/gif)
+    ((images_skipped_gif++))
+    return
+    ;;
+  esac
 
-    if [ "${is_animated}" -eq 0 ]; then
-        enc_static "${1}" "${new_path}"
+  local new_path="$(new_name "${1}")"
+
+  #
+  #   I hope this covers the most of formats.
+  #   If not - open an issue please!
+  #
+  case "${mime_type}" in
+  image/jpeg | image/pjpeg | image/bmp | image/x-bmp | \
+    image/x-sony-arw | image/x-canon-cr2 | image/x-canon-cr3 | \
+    image/x-nikon-nef | image/x-fuji-raf | image/x-panasonic-rw2 | \
+    image/x-olympus-orf | image/x-adobe-dng)
+    is_animated=0
+    ;;
+  *)
+    if [[ "${mime_type}" == "image/png" ]] && head -c 4096 "${1}" | grep -a -q "acTL"; then
+      is_animated=1
+    elif [[ "${mime_type}" == "image/webp" ]] && head -c 2048 "${1}" | grep -a -q "ANMF"; then
+      is_animated=1
     else
-        enc_animated "${1}" "${new_path}"
+      local frames=$(magick identify "${1}" | wc -l)
+      [[ "${frames}" -gt 1 ]] && is_animated=1
     fi
+    ;;
+  esac
 
-    if (( failed == 0 )); then
-        ((size_old+=$(get_size "${1}")))
-        ((size_new+=$(get_size "${new_path}")))
-        [[ "${JR_REMOVE}" == "TRUE" ]] && rm "${1}"
-    else
-        log "Conversion failed for: ${1}" >&2
-        ((p_images_failed++))
-    fi
+  if [ "${is_animated}" -eq 0 ]; then
+    enc_static "${1}" "${new_path}"
+  else
+    enc_animated "${1}" "${new_path}"
+  fi
 
-    echo "x" >&3
+  if ((failed == 0)); then
+    ((size_old += $(get_size "${1}")))
+    ((size_new += $(get_size "${new_path}")))
+    [[ "${JR_REMOVE}" == "TRUE" ]] && rm "${1}"
+  else
+    log "Conversion failed for: ${1}" >&2
+    ((p_images_failed++))
+  fi
+
+  echo "x" >&3
 }
 
 is_image() {
-    [[ $(file --mime-type -b "${1}") =~ ^image/ ]]
+  [[ $(file --mime-type -b "${1}") =~ ^image/ ]]
 }
 
 process() {
-    local p_images_total
-    local p_images_failed=0
+  local p_images_total
+  local p_images_failed=0
 
-    log
+  log
 
-    log "Processing ${GRN}'${1}'${RST}..." >&2
-    if [[ -e "${1}" ]]; then
-        p_images_total=$(find "${1}" -type f -exec file --mime-type -b {} + | \
-            grep '^image/' | grep -vE '^image/(jxl|gif)' | wc -l)
-    else
-        log "${RED}⊘${RST} Location not found, skipping."
-        ((locations_skipped++))
-        return 1
-    fi
+  log "Processing ${GRN}'${1}'${RST}..." >&2
+  if [[ -e "${1}" ]]; then
+    p_images_total=$(find "${1}" -type f -exec file --mime-type -b {} + |
+      grep '^image/' | grep -vE '^image/(jxl|gif)' | wc -l)
+  else
+    log "${RED}⊘${RST} Location not found, SKIP."
+    ((locations_skipped++))
+    return 1
+  fi
 
-    if [ ${p_images_total} -eq 0 ]; then
-        log "${YLW}⊙${RST} Images not found, skipping."
-        ((locations_skipped++))
-        return 0
-    fi
+  if [ ${p_images_total} -eq 0 ]; then
+    log "${YLW}⊙${RST} Compatible files not found, SKIP."
+    ((locations_skipped++))
+    return 0
+  fi
 
-    log "${GRN}⊙${RST} Found ${p_images_total} images, starting conversion." >&2
+  log "${GRN}⊙${RST} Found ${p_images_total} compatible files, start conversion." >&2
 
-    #
-    #   Open pv on File Descriptor 3
-    #
-    if not_quiet; then
-        exec 3> >(pv -l -s "${p_images_total}" >/dev/null)
-    else
-        exec 3>/dev/null
-    fi
+  #
+  #   Open pv on file descriptor 3
+  #
+  if not_quiet; then
+    exec 3> >(pv -l -s "${p_images_total}" >/dev/null)
+  else
+    exec 3>/dev/null
+  fi
 
-    #
-    #   Run loop in the main thread using process substitution
-    #
-    while IFS= read -r -d '' filename; do
-        is_image "${filename}" && reenc "${filename}"
-    done < <(find "${1}" -type f -print0)
+  #
+  #   Run loop in main thread using process substitution
+  #
+  while IFS= read -r -d '' filename; do
+    is_image "${filename}" && reenc "${filename}"
+  done < <(find "${1}" -type f -print0)
 
-    #
-    #   Close side channel to stop pv
-    #
-    exec 3>&-
+  #
+  #   Close side channel to stop pv
+  #
+  exec 3>&-
 
-    sleep 0.3
+  #
+  #   Avoid messy output
+  #
+  sleep 0.3
 
-    if (( p_images_failed > 0 )); then
-        log "${p_images_failed} images failed conversion." >&2
-    fi
+  if ((p_images_failed > 0)); then
+    log "${p_images_failed} images failed conversion." >&2
+  fi
 
-    ((images_failed+=p_images_failed))
+  ((images_failed += p_images_failed))
 }
 
 header() {
-    printf "%b\n" \
-        "${PPL}═══════════════════════════════════════${RST}" \
-        "${BLD}               jxl-reenc               ${RST}" \
-        "${PPL}═══════════════════════════════════════${RST}"
+  printf "%b\n" \
+    "${PPL}═══════════════════════════════════════${RST}" \
+    "${BLD}               jxl-reenc               ${RST}" \
+    "${PPL}═══════════════════════════════════════${RST}"
 }
 
 iec_size() {
-    echo $(echo "${1}" | numfmt --to=iec-i)"B"
+  echo $(echo "${1}" | numfmt --to=iec-i)"B"
 }
 
 footer() {
-    local difference=$((size_old - size_new))
-    (( difference >= 0 )) && local sign_color="${GRN}" || local sign_color="${RED}"
-    local compression_rate=$(printf "%.1f%%" $((size_new*100 / size_old)))
+  local difference=$((size_old - size_new))
+  ((difference >= 0)) && local sign_color="${GRN}" || local sign_color="${RED}"
+  local compression_rate=$(printf "%.1f%%" $((size_new * 100 / size_old)))
 
-    printf "%b\n" \
-        "" \
-        "┌─────────────────────────────────────┐" \
-        "│               ${PPL}Results${RST}               │" \
-        "├─────────────────────────────────────┤"
-    printf "│  %-18s%26s  │\n" \
-        "Compression Rate" "$(printf "%b%s%b" "${sign_color}" "${compression_rate}" "${RST}")"
-    printf "│  %-18s%15s  │\n" \
-        "Original Size" $(iec_size "${size_old}") \
-        "Final Size" $(iec_size "${size_new}")
-    printf "│  %-18s%26s  │\n" \
-        "Space Saved" "$(printf "%b%s%b" "${sign_color}" "$(iec_size "${difference}")" "${RST}")"
-    printf "%b\n" \
-        "├─────────────────────────────────────┤"
-    printf "│  %-18s%15s  │\n" \
-        "Images Processed" "${images_processed}" \
-        "JXL Files (skip)" "${images_skipped_jxl}" \
-        "GIF Files (skip)" "${images_skipped_gif}"
-    printf "%b\n" \
-        "├─────────────────────────────────────┤"
-    printf "│  %-18s%15s  │\n" \
-        "Images Failed" "${images_failed}" \
-        "Locations Skipped" "${locations_skipped}"
-    printf "%b\n" \
-        "└─────────────────────────────────────┘"
+  #
+  #   TUI-like fancy logging
+  #
+  printf "%b\n" \
+    "" \
+    "┌─────────────────────────────────────┐" \
+    "│               ${PPL}Results${RST}               │" \
+    "├─────────────────────────────────────┤"
+  printf "│  %-18s%26s  │\n" \
+    "Compression rate" "$(printf "%b%s%b" "${sign_color}" "${compression_rate}" "${RST}")"
+  printf "│  %-18s%15s  │\n" \
+    "Original size" $(iec_size "${size_old}") \
+    "Final size" $(iec_size "${size_new}")
+  printf "│  %-18s%26s  │\n" \
+    "Space saved" "$(printf "%b%s%b" "${sign_color}" "$(iec_size "${difference}")" "${RST}")"
+  printf "%b\n" \
+    "├─────────────────────────────────────┤"
+  printf "│  %-18s%15s  │\n" \
+    "Images processed" "${images_processed}" \
+    "JXL files (skip)" "${images_skipped_jxl}" \
+    "GIF files (skip)" "${images_skipped_gif}"
+  printf "%b\n" \
+    "├─────────────────────────────────────┤"
+  printf "│  %-18s%15s  │\n" \
+    "Conversions failed" "${images_failed}" \
+    "Locations skipped" "${locations_skipped}"
+  printf "%b\n" \
+    "└─────────────────────────────────────┘"
 }
 
+#
+#   Grab all together and launch
+#
 app() {
-    not_quiet && header
+  not_quiet && header
 
-    local size_old=0
-    local size_new=0
-    local images_processed=0
-    local images_skipped_jxl=0
-    local images_skipped_gif=0
-    local images_failed=0
-    local locations_skipped=0
+  local size_old=0
+  local size_new=0
+  local images_processed=0
+  local images_skipped_jxl=0
+  local images_skipped_gif=0
+  local images_failed=0
+  local locations_skipped=0
 
-    if [ "$#" -eq 0 ]; then
-        process "$(pwd)"
-    else
-        for arg in "$@"; do
-            process "$arg"
-        done
-    fi
+  if [ "$#" -eq 0 ]; then
+    process "$(pwd)"
+  else
+    for arg in "$@"; do
+      process "$arg"
+    done
+  fi
 
-    if [ ${size_old} -ne 0 ] && not_quiet; then
-        footer
-    elif not_quiet; then
-        echo -e "\nNo images were converted."
-    fi
+  if [ ${size_old} -ne 0 ] && not_quiet; then
+    footer
+  elif not_quiet; then
+    echo -e "\nNo images were converted!"
+  fi
 }
 
 prerequisites() {
-    deps=("pv" "magick" "du" "file" "numfmt" "find" "awk" "ffmpeg")
-    missing=0
+  deps=("pv" "magick" "du" "file" "numfmt" "find" "awk" "ffmpeg")
+  missing=0
 
-    for cmd in "${deps[@]}"; do
-        if ! command -v "${cmd}" &>/dev/null; then
-            echo -e "'${cmd}' is missing. The script won't run without it."
-            ((missing++))
-        fi
-    done
-
-    if ! magick -list format 2>/dev/null | grep -i "jxl" | grep -qi "rw"; then
-        echo -e "'${cmd}' is installed, but has no access to libjxl. The script won't run without it."
-        ((missing++))
+  for cmd in "${deps[@]}"; do
+    if ! command -v "${cmd}" &>/dev/null; then
+      echo -e "'${cmd}' is missing. The script won't run without it!"
+      ((missing++))
     fi
-    
-    [ "${missing}" -eq 0 ]
+  done
+
+  if ! magick -list format 2>/dev/null | grep -i "jxl" | grep -qi "rw"; then
+    echo -e "'${cmd}' is installed, but it got no access to libjxl. The script won't run without it!"
+    ((missing++))
+  fi
+
+  [ "${missing}" -eq 0 ]
 }
 
 if [[ "$1" =~ ^(--|-)(h|help)$ ]]; then
-    cat << EOF
+  cat <<EOF
 jxl-reenc version 0.2.1
-Home brew script for batch image-to-JpegXL conversion
+Simple script for batch image-to-JpegXL conversion
 
 Usage: [environment variables] jxl-reenc [locations such as dirs and files]
 Examples:
@@ -282,74 +313,77 @@ Examples:
 
 Environment variables:
   JR_REMOVE=TRUE
-    Remove original files for successfully converted images.
+    Remove original files if conversion was successful (per-file).
   JR_QUIET=TRUE
-    Disable output.
-
+    Silence the output.
 Output explanation:
-  Example output:
-    ❯ JR_REMOVE=TRUE jxl-reenc ~/Pictures ~/Videos random_text
+  ❯ JR_REMOVE=TRUE jxl-reenc ~/Pictures ~/Videos random_text
     
-    Processing '/home/user/Pictures'...
-    ⊙ Found 18 images, starting conversion.
-    18.0  0:00:43 [ 409m/s] [=======================================>] 100%
+  Processing '/home/user/Pictures'...
+  ⊙ Found 18 compatible files, start conversion.
+  18.0  0:00:43 [ 409m/s] [=======================================>] 100%
     
-    Processing '/home/user/Videos'...
-    ⊙ Images not found, skipping.
+  Processing '/home/user/Videos'...
+  ⊙ Compatible files not found, SKIP.
 
-    Processing 'random_text'...
-    ⊘ Location not found, skipping.
+  Processing 'random_text'...
+  ⊘ Location not found, SKIP.
     
-    ┌─────────────────────────────────────┐
-    │               Results               │
-    ├─────────────────────────────────────┤
-    │  Compression Rate            40.2%  │
-    │  Original Size              237MiB  │
-    │  Final Size                  95MiB  │
-    │  Space Saved                142MiB  │
-    ├─────────────────────────────────────┤
-    │  Images Processed               18  │
-    │  JXL Files (skip)               98  │
-    │  GIF Files (skip)                0  │
-    ├─────────────────────────────────────┤
-    │  Images Failed                   0  │
-    │  Locations Skipped               2  │
-    └─────────────────────────────────────┘
+  ┌─────────────────────────────────────┐
+  │               Results               │
+  ├─────────────────────────────────────┤
+  │  Compression rate            40.1%  │
+  │  Original size              237MiB  │
+  │  Final size                  95MiB  │
+  │  Space saved                142MiB  │
+  ├─────────────────────────────────────┤
+  │  Images processed               18  │
+  │  JXL files (skip)               98  │
+  │  GIF files (skip)                0  │
+  ├─────────────────────────────────────┤
+  │  Conversions failed              0  │
+  │  Locations skipped               2  │
+  └─────────────────────────────────────┘
 
   Processing status:
-    "⊙ Found X images, starting conversion."
-      Images were detected in this location and conversion began.
+    "⊙ Found %n compatible files, start conversion."
+      Compatible files were detected, where %n is the number of them.
+      A sign of success.
     
-    "⊘ Location not found, skipping."
+    "⊘ Location not found, SKIP."
       The specified path does not exist or is inaccessible.
     
-    "⊙ Images not found, skipping."
+    "⊙ Compatible files not found, SKIP."
       The location exists but contains no images to convert.
 
   Results table:
-    "Compression Rate"
-      Percentage of final size relative to original size.
-      Lower is better. Calculated as: (final size / original size) × 100.
+    "Compression rate"
+      Size of converted files relatively to original.
+      Good sign: <100%. Less is better. 
+      Calculated as: (converted files size / original size) × 100%.
     
-    "Original Size / Final Size / Space Saved"
-      Total disk space before and after conversion, plus the difference.
-    
-    "Images Processed"
-      Number of images successfully converted to JpegXL.
-    
-    "JXL Files (skip) / GIF Files (skip)"
-      Images that were skipped because they were already in JpegXL format
-      or are animated GIFs (bad Compression Rates).
-    
-    "Images Failed"
-      Number of images that could not be converted due to errors.
-    
-    "Locations Skipped"
-      Number of input paths that were not processed (invalid or empty).
+    "Original size / Final size / Space saved"
+      Respectively, size of original compatible files, size of
+      converted files, and space saved
+      (calculated as original size - final size).
 
-Report issues:
+    "Images processed"
+      Number of successfully converted images.
+    
+    "JXL files (skip) / GIF files (skip)"
+      We skip already converted JXL files.
+      GIF files won't be converted since they have
+      quite mediocre compression rates.
+
+    "Conversions failed"
+      Number of files that weren't converted due to errors.
+    
+    "Locations skipped"
+      Number of paths that weren't processed (invalid or empty).
+
+Report issues if any!
   https://github.com/rifux/jxl-reenc/issues
 EOF
 else
-    prerequisites && app "$@"
+  prerequisites && app "$@"
 fi
