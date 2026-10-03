@@ -44,6 +44,8 @@ JR_REMOVE=TRUE jxl-reenc ~/Pictures   # removes original files if conversion suc
 
 ![Screenshot of terminal](./assets/screenshot.webp)
 
+<br>
+
 <!-- -->
 ### Full help page (yes, really!)
 
@@ -60,18 +62,18 @@ Examples:
 
 Environment variables:
   JR_REMOVE=TRUE
-    Remove original files if conversion was successfull (per-file).
+    Remove original files if conversion was successful (per-file).
   JR_QUIET=TRUE
-    Disable (fancy?) output.
+    Silence the output.
 Output explanation:
   ❯ JR_REMOVE=TRUE jxl-reenc ~/Pictures ~/Videos random_text
     
   Processing '/home/user/Pictures'...
-  ⊙ Found 18 images, start conversion.
+  ⊙ Found 18 compatible files, start conversion.
   18.0  0:00:43 [ 409m/s] [=======================================>] 100%
     
   Processing '/home/user/Videos'...
-  ⊙ Images not found, SKIP.
+  ⊙ Compatible files not found, SKIP.
 
   Processing 'random_text'...
   ⊘ Location not found, SKIP.
@@ -79,7 +81,7 @@ Output explanation:
   ┌─────────────────────────────────────┐
   │               Results               │
   ├─────────────────────────────────────┤
-  │  Compression rate            40.2%  │
+  │  Compression rate            40.1%  │
   │  Original size              237MiB  │
   │  Final size                  95MiB  │
   │  Space saved                142MiB  │
@@ -93,7 +95,7 @@ Output explanation:
   └─────────────────────────────────────┘
 
   Processing status:
-    "⊙ Found %n compatible files, starting conversion..."
+    "⊙ Found %n compatible files, start conversion."
       Compatible files were detected, where %n is the number of them.
       A sign of success.
     
@@ -106,13 +108,14 @@ Output explanation:
   Results table:
     "Compression rate"
       Size of converted files relatively to original.
-      Good sign: <100%. 
+      Good sign: <100%. Less is better. 
       Calculated as: (converted files size / original size) × 100%.
     
     "Original size / Final size / Space saved"
-      Respectfully, size of orifinal compatible files, size of
+      Respectively, size of original compatible files, size of
       converted files, and space saved
       (calculated as original size - final size).
+
     "Images processed"
       Number of successfully converted images.
     
@@ -120,8 +123,9 @@ Output explanation:
       We skip already converted JXL files.
       GIF files won't be converted since they have
       quite mediocre compression rates.
-    "Images failed"
-      Number of images that weren't converted due to errors.
+
+    "Conversions failed"
+      Number of files that weren't converted due to errors.
     
     "Locations skipped"
       Number of paths that weren't processed (invalid or empty).
